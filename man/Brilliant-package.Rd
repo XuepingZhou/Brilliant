@@ -1,0 +1,35 @@
+\name{Brilliant-package}
+\alias{Brilliant-package}
+\alias{Brilliant}
+\docType{package}
+\title{
+\packageTitle{Brilliant}
+}
+\description{
+\packageDescription{Brilliant}
+}
+\details{
+
+The DESCRIPTION file:
+\packageDESCRIPTION{Brilliant}
+\packageIndices{Brilliant}
+~~ An overview of how to use the package, including the most important functions ~~
+}
+\author{
+\packageAuthor{Brilliant}
+
+Maintainer: \packageMaintainer{Brilliant}
+}
+\references{
+~~ Literature or other references for background information ~~
+}
+~~ Optionally other standard keywords, one per line, from file KEYWORDS in the R ~~
+~~ documentation directory ~~
+\keyword{ package }
+\seealso{
+~~ Optional links to other man pages, e.g. ~~
+~~ \code{\link[<pkg>:<pkg>-package]{<pkg>}} ~~
+}
+\examples{
+~~ simple examples of the most important functions ~~
+}

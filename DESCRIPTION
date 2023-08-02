@@ -1,0 +1,26 @@
+Package: Brilliant
+Type: Package
+Title: Brilliant algorithm for the Multivariate Multiple Linear Regression with an Arbitrary Group Structure
+Version: 1.0
+Date: 2022-12-23
+Author: Xueping Zhou
+Maintainer: Xueping Zhou <xuepinghzou616@gmail.com>
+Description: For fitting multivariate response and multiple predictor linear regressions with an arbitrary group structure assigned on the regression coefficient matrix, using the Brilliant algorithm and the mixed coordinate descent algorithm. The Brilliant algorithm is a multivariate sparse group lasso regression method with consideration of the covariance structure of the error terms. 
+License: MIT + file LICENSE
+Encoding: UTF-8
+Imports: 
+    MASS,
+    matrixcalc,
+    Rcpp,
+    RcppArmadillo
+LinkingTo: Rcpp, RcppArmadillo
+RoxygenNote: 7.2.3
+Suggests: 
+    knitr,
+    rmarkdown,
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
+VignetteBuilder: knitr
+Depends: 
+    R (>= 2.10)
+LazyData: true
