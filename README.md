@@ -1,2 +1,177 @@
 # Brilliant
 An R package for Brilliant (Biological Grouping Structure and Correlation Guided Feature Selection for Multivariate Outcome Prediction)
+
+
+
+```{r setup}
+library(devtools)
+install_github("XuepingZhou/Brilliant")
+library(Brilliant)
+```
+
+
+# Load and prepare data 
+```{r , echo=TRUE}
+data(BrilliantData)
+X <- BrilliantData$X
+Y <- BrilliantData$Y
+B <- BrilliantData$B
+```
+
+Split the data into training, validation and test sets 
+```{r , echo=TRUE}
+N.train = 200 
+N.valid = 100
+N.test = 100
+
+X.train <- X[1:N.train, ] ; Y.train <- Y[1:N.train, ]
+X.valid <- X[(N.train +1):(N.train + N.valid), ] ; 
+Y.valid <- Y[(N.train +1):(N.train + N.valid), ]
+X.test <-  X[(N.train + N.valid +1):(N.train + N.valid + N.test), ] ; 
+Y.test <- Y[(N.train + N.valid +1):(N.train + N.valid + N.test), ]
+```
+
+
+# Run Brilliant algorithm with parameter tuning 
+
+## Group structure information of the data 
+```{r , echo=TRUE}
+P = dim(X)[2] ; X.blocksize = 50 
+Q = dim(Y)[2] ; E.blocksize =20 
+
+GarrStarts <- seq(1, P , by = X.blocksize )
+GarrEnds <- GarrStarts + (X.blocksize -1) 
+RarrStarts <- seq(1, Q, by =E.blocksize)
+RarrEnds <- RarrStarts +  (E.blocksize -1) 
+
+grp.list.P <- data.frame(GarrStarts, GarrEnds)
+grp.list.Q <- data.frame(RarrStarts, RarrEnds)
+```
+
+
+## Standardize the data 
+```{r , echo=TRUE}
+X.scale <- scale(X.train, center = TRUE, scale = TRUE)
+Y.scale <- scale(Y.train, center = TRUE, scale = FALSE)
+
+X.valid.scale<- scale(X.valid, 
+                          center = apply(X.train, 2, mean), 
+                          scale =apply(X.train, 2, sd) )
+X.test.scale<- scale(X.test, 
+                          center = apply(X.train, 2, mean), 
+                          scale =apply(X.train, 2, sd) )
+
+```
+
+## Use the all the outcome information to calculate working precision matrix 
+```{r , echo=TRUE}
+Omega.y <- BrilliantOmega(Y = Y, 
+                          grp.list.Q=grp.list.Q)
+```
+
+## Tune parameters 
+### Potential optimal tuning parameter list
+```{r , echo=TRUE}
+lambda.vec = c(1e-5, 1e-6, 1e-7, 1e-8)
+lambdaG.vec= c(1e-5, 1e-6)
+lambda.df = expand.grid(lambda = lambda.vec, lambdaG = lambdaG.vec  )
+```
+
+###  The following code can also be run in a parallel way
+```{r , echo=TRUE}
+Setting_allSimulation <- list()
+for (i in 1:dim(lambda.df)[1]){
+  lambda.tmp <- lambda.df[i, 1 ]
+  lambdaG.tmp <- lambda.df[i, 2]
+
+  # MSGLasso.extension
+  msglasso.ex0 <-  MSGExt(X=X.scale, Y=Y.scale, Omega = Omega.y,
+                          lambda = lambda.tmp, lambdaG = lambdaG.tmp,
+                          grplistP = as.matrix(grp.list.P) - 1 ,
+                          grplistQ = as.matrix(grp.list.Q) - 1 ,
+                          MaxNG = 1,
+                          grBnomThred = 1, convThreshold = 0.1,
+                          maxiter =500 )
+  Thred.vec <- quantile( abs(c(msglasso.ex0$betaori) ), probs = seq(from=0,to=1,by=0.025))
+  Thred.vec <-  unique(Thred.vec)
+  # ---------------------------------------------------
+  tmp.list <- list()
+  tmp.eval <- matrix(NA, nrow =  length(Thred.vec),  ncol = 4)
+  thred.index = 0
+  for( Thred.tmp in Thred.vec){
+    thred.index =  thred.index +1
+    B.tmp.thred <- msglasso.ex0$beta
+    B.tmp.thred[abs( B.tmp.thred ) < Thred.tmp] <- 0
+    predict.Y.valid.scale <-  X.valid.scale %*% B.tmp.thred
+    predict.Y.valid = t(apply(predict.Y.valid.scale, 1, function(x) x + attr(Y.scale, 'scaled:center')))
+    diff.mtx <-  Y.valid - predict.Y.valid
+    diff <- as.numeric(diff.mtx)
+    ##########################################
+    # summarize
+    tmp.eval[thred.index, 1] <-  lambda.tmp
+    tmp.eval[thred.index, 2] <-  lambdaG.tmp
+    tmp.eval[thred.index, 3] <-  Thred.tmp
+    tmp.eval[thred.index, 4] <-  sum( diff^2 )  / dim(X.valid)[1]
+  }
+
+  # return(list(B.back0 =B.back , msglasso.ex0 =  msglasso.ex0,
+  #             tmp.eval=tmp.eval, detail = tmp.list))
+
+  Setting_allSimulation[[i]] <- list( 
+                                     msglasso.ex0 =  msglasso.ex0,
+                                     tmp.eval=tmp.eval, detail = tmp.list)
+}
+```
+
+### summarize the result
+```{r , echo=TRUE}
+for(i in 1:length(Setting_allSimulation)){
+  if(i == 1){
+    eval.df = Setting_allSimulation[[i]]$tmp.eval
+  }else{
+    eval.df <- rbind(eval.df , Setting_allSimulation[[i]]$tmp.eval)
+  }
+}
+eval.df <- as.data.frame(eval.df)
+colnames(eval.df ) <-c("lam1","lamG", "Bthred", "MSE")
+
+``` 
+
+# Run brilliant using the best parameter set 
+
+## Minimun MSE 
+```{r , echo=TRUE}
+min(eval.df$MSE)
+```
+## Optimal parameters
+```{r , echo=TRUE}
+lambda.best = eval.df[which.min( eval.df$MSE), ]$lam1
+lambdaG.best =eval.df[which.min( eval.df$MSE), ]$lamG
+Thred.best = eval.df[which.min( eval.df$MSE), ]$Thred.best
+tmp0 <- eval.df[eval.df$lam1 == lambda.best & eval.df$lamG == lambdaG.best , ]
+```
+## Final model corresponding to the best parameter sets
+```{r , echo=TRUE}
+tmp.model.index<- which(lambda.df$lambda ==  lambda.best & lambda.df$lambdaG==  lambdaG.best )
+msglasso.ex <-  Setting_allSimulation[[tmp.model.index]]$msglasso.ex0
+B.tmp.thred <-  msglasso.ex$beta
+B.tmp.thred[abs(  B.tmp.thred ) <  Thred.best] <- 0
+B.back <- B.tmp.thred
+for(p in 1:P){
+  B.back[p,] = B.back[p, ] / attr(X.scale, "scaled:scale")[p]
+}
+```
+
+
+# Predict
+```{r , echo=TRUE}
+predict.Y.test.scale <-  X.test.scale %*% B.tmp.thred
+predict.Y.test <-  t(apply(predict.Y.test.scale, 1, function(x) {x+ apply(Y.train, 2, mean)}))
+diff.mtx <-  Y.test - predict.Y.test
+diff <- as.numeric(predict.Y.test - Y.test)
+predict.MSE  <-  sum( diff^2 )  / dim(X.test)[1]
+predict.MSE
+```
+
+
+
